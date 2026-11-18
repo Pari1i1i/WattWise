@@ -34,6 +34,7 @@ func main() {
 
 	authService := service.NewAuthService(db)
 	authHandler := handler.NewAuthHandler(authService, db)
+	roomHandler := handler.NewRoomHandler(db)
 
 	r := gin.Default()
 
@@ -47,13 +48,14 @@ func main() {
 			c.JSON(http.StatusOK, gin.H{"status": "success", "service": "WattWise Backend API", "db": "connected"})
 		})
 
-		// Public Auth Routes
+		// Public Auth & Landing Page Sandbox Routes
 		auth := v1.Group("/auth")
 		{
 			auth.POST("/register", authHandler.Register)
 			auth.POST("/login", authHandler.Login)
 			auth.POST("/google", authHandler.GoogleLogin)
 		}
+		v1.POST("/sandbox/optimize", roomHandler.SandboxOptimize)
 
 		// Protected Routes (Wajib JWT & Sesi Aktif)
 		protected := v1.Group("/")
@@ -61,6 +63,10 @@ func main() {
 		{
 			protected.GET("/auth/me", authHandler.Me)
 			protected.POST("/auth/logout", authHandler.Logout)
+
+			protected.POST("/rooms", roomHandler.CreateRoom)
+			protected.GET("/rooms", roomHandler.GetMyRooms)
+			protected.POST("/rooms/:id/optimize", roomHandler.OptimizeRoom)
 		}
 	}
 
