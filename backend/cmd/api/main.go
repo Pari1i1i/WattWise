@@ -48,7 +48,6 @@ func main() {
 			c.JSON(http.StatusOK, gin.H{"status": "success", "service": "WattWise Backend API", "db": "connected"})
 		})
 
-		// Public Auth & Landing Page Sandbox Routes
 		auth := v1.Group("/auth")
 		{
 			auth.POST("/register", authHandler.Register)
@@ -57,7 +56,6 @@ func main() {
 		}
 		v1.POST("/sandbox/optimize", roomHandler.SandboxOptimize)
 
-		// Protected Routes (Wajib JWT & Sesi Aktif)
 		protected := v1.Group("/")
 		protected.Use(middleware.AuthMiddleware(db))
 		{
@@ -66,7 +64,9 @@ func main() {
 
 			protected.POST("/rooms", roomHandler.CreateRoom)
 			protected.GET("/rooms", roomHandler.GetMyRooms)
+			protected.GET("/rooms/:id", roomHandler.GetRoomDetail)
 			protected.POST("/rooms/:id/optimize", roomHandler.OptimizeRoom)
+			protected.POST("/rooms/:id/scan-photo", roomHandler.ScanRoomPhoto)
 		}
 	}
 

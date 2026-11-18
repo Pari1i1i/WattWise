@@ -163,3 +163,87 @@ func (h *RoomHandler) SandboxOptimize(c *gin.Context) {
 	summary := service.OptimizeRoomLayout(room, apps)
 	c.JSON(http.StatusOK, gin.H{"status": "success", "data": summary})
 }
+
+func (h *RoomHandler) GetRoomDetail(c *gin.Context) {
+	roomID := c.Param("id")
+	userID := c.GetString("user_id")
+
+	var room domain.Room
+	if err := h.db.Preload("Appliances").Where("id = ? AND user_id = ?", roomID, userID).First(&room).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"status": "error", "message": "Kamar tidak ditemukan"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "success", "data": room})
+}
+
+func (h *RoomHandler) ScanRoomPhoto(c *gin.Context) {
+	roomID := c.Param("id")
+	userID := c.GetString("user_id")
+
+	var room domain.Room
+	if err := h.db.Where("id = ? AND user_id = ?", roomID, userID).First(&room).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"status": "error", "message": "Kamar tidak ditemukan"})
+		return
+	}
+
+	var imageBytes []byte
+	mimeType := "image/jpeg"
+
+	fileHeader, err := c.FormFile("photo")
+	if err == nil {
+		file, err := fileHeader.Open()
+		if err == nil {
+			defer file.Close()
+			buf := make([]byte, fileHeader.Size)
+			_, _ = file.Read(buf)
+			imageBytes = buf
+			if ct := fileHeader.Header.Get("Content-Type"); ct != "" {
+				mimeType = ct
+			}
+		}
+	}
+
+	scanRes, err := service.AnalyzeRoomPhoto(imageBytes, mimeType, room.WidthM, room.LengthM)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "Gagal menganalisis foto kamar"})
+		return
+	}
+
+	// Simpan semua perangkat hasil deteksi AI ke tabel room_appliances
+	var savedAppliances []domain.RoomAppliance
+	for _, det := range scanRes.DetectedAppliances {
+		posBytes, _ := json.Marshal(det.Position3D)
+		dimBytes, _ := json.Marshal(det.DimensionsCm)
+		acTemp := det.AcTempSetting
+		if acTemp == 0 {
+			acTemp = 24
+		}
+
+		app := domain.RoomAppliance{
+			RoomID:          room.ID,
+			CustomName:      det.CustomName,
+			Category:        det.Category,
+			ActiveWatt:      det.ActiveWatt,
+			StandbyWatt:     det.StandbyWatt,
+			DailyUsageHours: det.DailyUsageHours,
+			AlwaysPluggedIn: true,
+			AcTempSetting:   acTemp,
+			DimensionsCm:    datatypes.JSON(dimBytes),
+			Position3D:      datatypes.JSON(posBytes),
+		}
+		h.db.Create(&app)
+		savedAppliances = append(savedAppliances, app)
+	}
+
+	// Langsung jalankan optimasi layout setelah scan selesai
+	optimizationSummary := service.OptimizeRoomLayout(room, savedAppliances)
+	h.db.Model(&room).Update("efficiency_score", optimizationSummary.EfficiencyScoreAfter)
+
+	c.JSON(http.StatusOK, gin.H{
+		"status": "success",
+		"data": gin.H{
+			"vision_scan":          scanRes,
+			"optimization_summary": optimizationSummary,
+		},
+	})
+}
