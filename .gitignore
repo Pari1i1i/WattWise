@@ -1,0 +1,18 @@
+.env
+*.env
+!.env.example
+
+# Go Backend
+backend/bin/
+backend/tmp/
+backend/*.exe
+
+# Next.js Frontend
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+
+# OS & Editor
+.DS_Store
+.vscode/
+.idea/
