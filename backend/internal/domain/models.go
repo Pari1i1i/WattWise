@@ -71,3 +71,11 @@ type RoomAppliance struct {
 	OptimizedPosition3D datatypes.JSON `gorm:"type:jsonb" json:"optimized_position_3d,omitempty"`
 	ThermalPenaltyPct   float64        `gorm:"type:numeric(5,2);default:0" json:"thermal_penalty_pct"`
 }
+
+type HouseBill struct {
+	ID           uuid.UUID `gorm:"type:uuid;default:uuid_generate_v4();primaryKey" json:"id"`
+	HouseGroupID uuid.UUID `gorm:"type:uuid;not null;index" json:"house_group_id"`
+	BillingMonth string    `gorm:"size:7;not null" json:"billing_month"` // Format: "YYYY-MM"
+	TotalBillIdr float64   `gorm:"type:numeric(12,2);not null" json:"total_bill_idr"`
+	CreatedAt    time.Time `json:"created_at"`
+}

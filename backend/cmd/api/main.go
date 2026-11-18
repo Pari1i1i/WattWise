@@ -26,6 +26,7 @@ func main() {
 		&domain.User{},
 		&domain.UserSession{},
 		&domain.HouseGroup{},
+		&domain.HouseBill{},
 		&domain.Room{},
 		&domain.RoomAppliance{},
 	); err != nil {
@@ -35,8 +36,10 @@ func main() {
 	authService := service.NewAuthService(db)
 	authHandler := handler.NewAuthHandler(authService, db)
 	roomHandler := handler.NewRoomHandler(db)
+	houseHandler := handler.NewHouseHandler(db)
 
 	r := gin.Default()
+	r.Use(middleware.CORSMiddleware())
 
 	v1 := r.Group("/api/v1")
 	{
@@ -62,11 +65,18 @@ func main() {
 			protected.GET("/auth/me", authHandler.Me)
 			protected.POST("/auth/logout", authHandler.Logout)
 
+			// Room & 3D Optimizer Routes
 			protected.POST("/rooms", roomHandler.CreateRoom)
 			protected.GET("/rooms", roomHandler.GetMyRooms)
 			protected.GET("/rooms/:id", roomHandler.GetRoomDetail)
 			protected.POST("/rooms/:id/optimize", roomHandler.OptimizeRoom)
 			protected.POST("/rooms/:id/scan-photo", roomHandler.ScanRoomPhoto)
+
+			// Kos / Kontrakan Collaborative Split-Bill Routes
+			protected.POST("/houses", houseHandler.CreateHouseGroup)
+			protected.POST("/houses/join", houseHandler.JoinHouseGroup)
+			protected.POST("/houses/:id/bills", houseHandler.CreateMonthlyBill)
+			protected.GET("/houses/:id/split-bill", houseHandler.GetFairSplitBill)
 		}
 	}
 
