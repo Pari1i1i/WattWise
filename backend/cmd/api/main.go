@@ -7,6 +7,9 @@ import (
 
 	"github.com/Pari1i1i/WattWise/backend/internal/config"
 	"github.com/Pari1i1i/WattWise/backend/internal/domain"
+	"github.com/Pari1i1i/WattWise/backend/internal/handler"
+	"github.com/Pari1i1i/WattWise/backend/internal/middleware"
+	"github.com/Pari1i1i/WattWise/backend/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
@@ -19,7 +22,6 @@ func main() {
 	db := config.ConnectDB()
 	sqlDB, _ := db.DB()
 
-	// AutoMigrate semua tabel ke PostgreSQL
 	if err := db.AutoMigrate(
 		&domain.User{},
 		&domain.UserSession{},
@@ -29,7 +31,9 @@ func main() {
 	); err != nil {
 		log.Fatalf("❌ Gagal migrasi database: %v", err)
 	}
-	log.Println("✅ AutoMigrate tabel berhasil!")
+
+	authService := service.NewAuthService(db)
+	authHandler := handler.NewAuthHandler(authService, db)
 
 	r := gin.Default()
 
@@ -40,12 +44,24 @@ func main() {
 				c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "db": "disconnected"})
 				return
 			}
-			c.JSON(http.StatusOK, gin.H{
-				"status":  "success",
-				"service": "WattWise Backend API",
-				"db":      "connected",
-			})
+			c.JSON(http.StatusOK, gin.H{"status": "success", "service": "WattWise Backend API", "db": "connected"})
 		})
+
+		// Public Auth Routes
+		auth := v1.Group("/auth")
+		{
+			auth.POST("/register", authHandler.Register)
+			auth.POST("/login", authHandler.Login)
+			auth.POST("/google", authHandler.GoogleLogin)
+		}
+
+		// Protected Routes (Wajib JWT & Sesi Aktif)
+		protected := v1.Group("/")
+		protected.Use(middleware.AuthMiddleware(db))
+		{
+			protected.GET("/auth/me", authHandler.Me)
+			protected.POST("/auth/logout", authHandler.Logout)
+		}
 	}
 
 	port := os.Getenv("PORT")
